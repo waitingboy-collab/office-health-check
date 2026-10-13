@@ -1,0 +1,102 @@
+# Два режима:
+#  - при всеки push и pull request: компилира и пуска тестовете
+#  - при таг v*: тестове → компилиране → инсталатор → GitHub Release
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+
+name: Build, test, release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+env:
+  APP_PROJECT: src/OfficeHealthCheck/OfficeHealthCheck.csproj
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Изтегли кода
+        uses: actions/checkout@v4
+
+      - name: Инсталирай .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Тестове
+        run: dotnet test OfficeHealthCheck.sln -c Release --logger "trx;LogFileName=results.trx" --results-directory test-results
+
+      - name: Качи резултатите от тестовете
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results
+
+      - name: Вземи версията от тага
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Компилирай (един .exe, без нужда от инсталиран .NET)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: >
+          dotnet publish $env:APP_PROJECT
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:Version=${{ steps.ver.outputs.version }}
+          -o publish
+
+      - name: Инсталирай Inno Setup
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Направи инсталатора
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: >
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          /DMyAppVersion=${{ steps.ver.outputs.version }}
+          installer\OfficeHealthCheck.iss
+
+      - name: SHA-256 хеш
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: hash
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash output\OfficeHealthCheck-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  OfficeHealthCheck-Setup.exe" | Out-File -Encoding ascii output\OfficeHealthCheck-Setup.exe.sha256
+          "sha=$h" >> $env:GITHUB_OUTPUT
+
+      - name: Качи в GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Office Health Check ${{ steps.ver.outputs.version }}
+          body: |
+            **SHA-256:** `${{ steps.hash.outputs.sha }}`
+
+            Windows 10/11 (64-bit). Не изисква инсталиран .NET и админ права. Само чете — не променя нищо по компютъра.
+          generate_release_notes: true
+          files: |
+            output/OfficeHealthCheck-Setup.exe
+            output/OfficeHealthCheck-Setup.exe.sha256

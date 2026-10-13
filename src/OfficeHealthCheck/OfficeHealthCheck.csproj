@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OfficeHealthCheck</AssemblyName>
+    <RootNamespace>OfficeHealthCheck</RootNamespace>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <Product>Office Health Check</Product>
+    <Description>Проверява състоянието на офис компютър и прави отчет в PDF.</Description>
+    <Company>Радослав Чакъров</Company>
+    <Copyright>© Радослав Чакъров</Copyright>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OfficeHealthCheck.Core\OfficeHealthCheck.Core.csproj" />
+  </ItemGroup>
+
+</Project>
